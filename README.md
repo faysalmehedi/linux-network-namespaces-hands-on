@@ -206,7 +206,8 @@ exit
 ```
 #### Connectivity between two network namespaces via bridge is completed.
 
-![Project Diagram](https://github.com/faayam/linux-network-namespaces-hands-on/blob/main/namespaces-setup.svg)
+![Project Diagram](https://github.com/faayam/linux-network-namespaces-hands-on/blob/main/namespace-setup.png)
+
 _the diagrom is taken from ops.tips blog_
 
 **_Step 5.1:_** Now it's time to connect to the internet. As we saw routing table from `ns1` doesn’t have a default gateway, it can’t reach any other machine from outside the `192.168.1.0/24` range.
