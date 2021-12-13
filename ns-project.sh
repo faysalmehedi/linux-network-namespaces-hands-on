@@ -122,5 +122,6 @@ sudo iptables \
         --dport 5000 \
         -j DNAT --to-destination 192.168.1.10:5000
 
+# run telnet from another source
 
-
+telnet 65.2.35.192 5000
