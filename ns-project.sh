@@ -86,7 +86,7 @@ ping host ip
 sudo iptables \
         -t nat \
         -A POSTROUTING \
-        -s 192.168.1.0/24 \
+        -s 192.168.1.0/24 ! -o br0 \
         -j MASQUERADE
 
 #To get around that, we can make use of NAT (network address translation) 
@@ -120,7 +120,7 @@ sudo iptables \
         -d 172.31.13.55 \
         -p tcp -m tcp \
         --dport 5000 \
-        -j DNAT --to-destination 192.168.1.10/24
+        -j DNAT --to-destination 192.168.1.10:5000
 
 
 

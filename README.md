@@ -13,8 +13,8 @@ Network namespaces, according to `man 7 network_namespaces`:
 **_Virtual interfaces_** provide us with virtualized representations of physical network interfaces; and the **_bridge_** gives us the virtual equivalent of a switch.
 
 #### What are we going to cover?
-- We are going to create two network namespace(like two isolate servers), two veth pair(like two physical ethernet cable) and a bridge (for routing traffic between namespaces).
-- Then we will configure the bridge as the two namespace can communicate with each other.
+- We are going to create two network namespace(like two isolated servers), two veth pair(like two physical ethernet cable) and a bridge (for routing traffic between namespaces).
+- Then we will configure the bridge as the two namespaces can communicate with each other.
 - Then we will connect the bridge to the host and the internet
 - At last we will cofigure for incoming traffic(outside) to the namespace.
 
@@ -44,16 +44,20 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 # add two two network namespaces using "ip netns" command
 sudo ip netns add ns1
 sudo ip netns add ns2
+
 # list the created network namespaces
 sudo ip netns list
+
 ns1
 ns2
+
 # By convention, network namespace handles created by
 # iproute2 live under `/var/run/netns`
 sudo ls /var/run/netns/
+
 ns1 ns2
 ```
-**_Step 1.2:_** By default network interfaces of created netns are down, loop interfaces also. make them up.
+**_Step 1.2:_** By default, network interfaces of created netns are down, even loop interfaces. make them up.
 ```bash
 sudo ip netns exec ns1 ip link set lo up
 sudo ip netns exec ns1 ip link
@@ -73,6 +77,7 @@ sudo ip netns exec ns2 ip link
 sudo ip link add br0 type bridge
 # up the created bridge and check whether it is created and in UP/UNKNOWN state
 sudo ip link set br0 up
+sudo ip link
 
 3: br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/ether 12:38:75:40:c0:17 brd ff:ff:ff:ff:ff:ff
@@ -99,15 +104,16 @@ rtt min/avg/max/mdev = 0.020/0.029/0.039/0.009 ms
 **_Step 3.1:_** Create two veth interface for two network netns, then attach to the bridge and netns
 ```bash
 # For ns1
+
 # creating a veth pair which have two ends identical veth0 and ceth0
 sudo ip link add veth0 type veth peer name ceth0
-# set veth0 end to the bridge br0
+# connect veth0 end to the bridge br0
 sudo ip link set veth0 master br0
 # up the veth0 
 sudo ip link set veth0 up 
-# set ceth0 end to the netns ns1
+# connect ceth0 end to the netns ns1
 sudo ip link set ceth0 netns ns1
-# up the ceth0 using 'exec' command to run command inside netns
+# up the ceth0 using 'exec' to run command inside netns
 sudo ip netns exec ns1 ip link set ceth0 up
 # check the link status 
 sudo ip link
@@ -126,7 +132,8 @@ sudo ip netns exec ns1 ip link
     link/ether 3e:66:e5:b6:07:9a brd ff:ff:ff:ff:ff:ff link-netnsid 0
 
 
-# For ns2 
+# For ns2; do the same as ns1
+
 sudo ip link add veth1 type veth peer name ceth1
 sudo ip link set veth1 master br0
 sudo ip link set veth1 up
@@ -150,7 +157,7 @@ sudo ip netns exec ns2 ip link
     link/ether 3e:1e:48:de:47:07 brd ff:ff:ff:ff:ff:ff link-netnsid 0
 ```
 
-**_Step 3.2:_** Now we will we add ip address to the netns veth interfaces and update route table to establish communication with bridge network and it will allow communication between two netns via bridge; 
+**_Step 3.2:_** Now we will we add ip address to the netns veth interfaces and update route table to establish communication with bridge network and it will also allow communication between two netns via bridge; 
 ```bash
 # For ns1
 sudo ip netns exec ns1 ip addr add 192.168.1.10/24 dev ceth0
@@ -219,7 +226,7 @@ sudo ip netns exec ns1 route -n
 Kernel IP routing table
 Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 192.168.1.0     0.0.0.0         255.255.255.0   U     0      0        0 ceth0
-# As you can, no route is defined to carry other traffic than 192.168.1.0/24
+# As we can see, no route is defined to carry other traffic than 192.168.1.0/24
 # we can fix this by using adding default route 
 sudo ip netns exec ns1 ip route add default via 192.168.1.1
 sudo ip netns exec ns1 route -n
@@ -237,7 +244,7 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 0.0.0.0         192.168.1.1     0.0.0.0         UG    0      0        0 ceth1
 192.168.1.0     0.0.0.0         255.255.255.0   U     0      0        0 ceth1
 
-# now ping the host machine eth0
+# now first ping the host machine eth0
 ip addr | grep eth0
 
 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc fq_codel state UP group default qlen 1000
@@ -250,7 +257,7 @@ sudo ip netns exec ns1 ping 172.31.13.55
 ```
 **_Step 5.2:_** Now let's see if ns1 can communicate to the internet, we can analysis traffic using tcpdump to see how a packet will travel. Open another terminal for catching traffic using tcpdump.
 ```bash
-# terminal 1
+# terminal-1
 # now trying to ping 8.8.8.8 again
 sudo ip netns exec ns1 ping 8.8.8.8
 
@@ -260,6 +267,7 @@ sudo ip netns exec ns1 ping 8.8.8.8
 sudo tcpdump -i eth0 icmp
 tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
 listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+
 # no packet captured, let's capture traffic for br0
 sudo tcpdump -i br0 icmp
 
@@ -272,21 +280,22 @@ listening on br0, link-type EN10MB (Ethernet), capture size 262144 bytes
 # it's because of IP forwarding issue
 sudo cat /proc/sys/net/ipv4/ip_forward
 0
+
 # enabling ip forwarding by change value 0 to 1
 sudo sysctl -w net.ipv4.ip_forward=1
 sudo cat /proc/sys/net/ipv4/ip_forward
 1
 
-# terminal 2
+# terminal-2
 sudo tcpdump -i eth0 icmp
 tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
 listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
 02:30:12.603895 IP ip-192-168-1-10.ap-south-1.compute.internal > dns.google: ICMP echo request, id 18103, seq 1, length 64
 02:30:13.621367 IP ip-192-168-1-10.ap-south-1.compute.internal > dns.google: ICMP echo request, id 18103, seq 2, length 64
 # as we can see now we are getting response eth0
-# ping 8.8.8.8 still not working
+# but ping 8.8.8.8 still not working
 # Although the network is now reachable, there’s no way that 
-# we can have responses back - packets from external networks 
+# we can have responses back - cause packets from external networks 
 # can’t be sent directly to our `192.168.1.0/24` network.
 ```
 **_Step 5.3:_** To get around that, we can make use of NAT (network address translation) by placing an `iptables` rule in the `POSTROUTING` chain of the `nat` table.
@@ -294,19 +303,18 @@ listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
 sudo iptables \
         -t nat \
         -A POSTROUTING \
-        -s 192.168.1.0/24 \
+        -s 192.168.1.0/24 ! -o br0 \
         -j MASQUERADE
 # -t specifies the table to which the commands
 # should be directed to. By default it's `filter`.
 # -A specifies that we're appending a rule to the
-# chain the we tell the name after it;
-# -s specifies a source address (with a mask in 
-# this case).
-# -j specifies the target to jump to (what action to
-# take).
+# chain then we tell the name after it;
+# -s specifies a source address (with a mask in this case).
+# -j specifies the target to jump to (what action to take).
 
 # now we're getting response from google dns
 sudo ip netns exec ns1 ping -c 2 8.8.8.8
+
 --- 8.8.8.8 ping statistics ---
 2 packets transmitted, 2 received, 0% packet loss, time 1002ms
 rtt min/avg/max/mdev = 1.625/1.662/1.700/0.037 ms
@@ -317,18 +325,29 @@ rtt min/avg/max/mdev = 1.625/1.662/1.700/0.037 ms
 sudo nsenter --net=/var/run/netns/netns1
 python3 -m http.server --bind 192.168.1.10 3000
 ```
-As I have a ec2 instance from AWS, it have attached public. I will try to reach that IP with specific port from outside. 
+As I have a ec2 instance from AWS, it have an attached public IP. I will try to reach that IP with specific port from outside. 
 ```bash
-telnet 65.2.35.192 3000
+telnet 65.2.35.192 5000
 Trying 65.2.35.192...
 telnet: Unable to connect to remote host: Connection refused
 ```
-As we can see we can't reach the destination. Because we didn'i tell the Host machine where to put the incoming the traffic. We have to NAT again, this time we will define destination.
+As we can see we can't reach the destination. Because we didn'i tell the Host machine where to put the incoming traffic. We have to NAT again, this time we will define the destination.
 ```bash
-sudo iptables -t nat -A PREROUTING -d 172.31.13.55 -p tcp -m tcp --dport 5000 -j DNAT --to-destination 192.168.1.10:5000
+
+sudo iptables \
+        -t nat \
+        -A PREROUTING \
+        -d 172.31.13.55 \
+        -p tcp -m tcp --dport 5000 \
+        -j DNAT --to-destination 192.168.1.10:5000
+# -p specifies a port type and --dport specifies the destination port
+# -j specifies the target DNAT to jump to destination IP with port.
+
 
 # from my laptop
-# now I can connect the destination
+# now I can connect the destination with port.
+# We successfully recieved traffic from internet inside container network
+
 telnet 65.2.35.192 5000
 Trying 65.2.35.192...
 Connected to 65.2.35.192.
@@ -340,7 +359,7 @@ Escape character is '^]'.
 - the application inside network namespaces can comunicate with host applications and another network namespaces applications
 - an application inside the network namespaces can connect to the internet
 - an application inside the network namespaces can listen for request from the outside internet
-- Finally we understand how Docker or some other container tool done networking under the hood. The automate the whole process for us when we give command like "Docker run -p 5000:5000 frontend-app"
+- Finally we understand how Docker or some other container tool done networking under the hood. They automate the whole process for us when we give command like "Docker run -p 5000:5000 frontend-app"
 
 #### Resources
 - https://man7.org/linux/man-pages/man7/network_namespaces.7.html
