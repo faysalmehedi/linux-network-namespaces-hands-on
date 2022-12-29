@@ -325,7 +325,7 @@ rtt min/avg/max/mdev = 1.625/1.662/1.700/0.037 ms
 **_Step: 6_** Now let's open a service in one of the namespaces and try to get response from outside
 ```bash
 sudo nsenter --net=/var/run/netns/netns1
-python3 -m http.server --bind 192.168.1.10 3000
+python3 -m http.server --bind 192.168.1.10 5000
 ```
 As I have a ec2 instance from AWS, it have an attached public IP. I will try to reach that IP with specific port from outside. 
 ```bash
